@@ -1,0 +1,7 @@
+---
+- name: Install Microsoft SQL Server
+  hosts: all 
+  become: no
+  roles:
+    - mssql
+    - ping

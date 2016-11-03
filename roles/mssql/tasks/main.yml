@@ -1,0 +1,119 @@
+- name: Create Temp dir for SQL Server files
+  win_file:
+    path: "C:\\Windows\\Temp\\SQLServerInstall"
+    state: directory
+  tags:
+    - mssql
+
+- name: Copy files
+  win_copy:
+    src: "{{ item }}"
+    dest: "C:\\Windows\\Temp\\SQLServerInstall"
+  register: install_files
+  with_fileglob:
+    - "{{ mssql_file_path + '/' if mssql_file_path is defined else '' }}*.ISO"
+    - "{{ mssql_file_path + '/' if mssql_file_path is defined else '' }}*.iso"
+    - "{{ mssql_file_path + '/' if mssql_file_path is defined else '' }}*.exe"
+  tags:
+    - mssql
+
+#- name: Copy files
+#  win_get_url:
+#    url: "{{ item }}"
+#    dest: 'C:\\Windows\\Temp\\SQLServerInstall'
+#    force: no
+#  register: install_files
+#  with_items:
+#    - "http://s3-us-west-1.amazonaws.com/bc-mssql/en_sql_server_2016_developer_x64_dvd_8777069.iso"
+#    - "http://s3-us-west-1.amazonaws.com/bc-mssql/SSMS-Setup-ENU.exe"
+#  tags:
+#    - mssql
+
+- name: Check to see if MS SQL is already installed
+  win_stat:
+    path: "C:\\Program Files\\Microsoft SQL Server\\130\\DTS"
+  register: mssql_install_status
+  tags:
+    - mssql
+    - debug
+
+- block:
+  - name: Mount ISO
+    script: "mount.ps1 -iso {{ item.invocation.module_args.dest }}\\{{ item.invocation.module_args.src | win_basename }}"
+    when: item.item | search("iso")
+    with_items: "{{ install_files.results }}"
+    register: mounted_volumes
+    tags:
+      - mssql
+
+  - name: Install MS SQL
+    raw: >
+      {{ mounted_volumes.results[0].stdout_lines[0] }}:\\setup.exe
+      /Q
+      /IACCEPTSQLSERVERLICENSETERMS
+      /ACTION=install
+      /FEATURES=SQL
+      /INSTANCENAME=MSSQLSERVER
+      /SQLSVCACCOUNT="NT AUTHORITY\Network Service"
+      /SQLSYSADMINACCOUNTS="Administrators"
+      /AGTSVCACCOUNT="NT AUTHORITY\Network Service"
+      /UPDATEENABLED=False
+  always:
+    - name: Unmount ISO
+      raw: "dismount-diskimage {{ item.invocation.module_args.dest }}\\{{ item.invocation.module_args.src | win_basename }}"
+      when: item.item | search("iso")
+      with_items: "{{ install_files.results }}"
+  when: not mssql_install_status.stat.exists
+
+- name: Start and enable MS SQL
+  win_service:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+    start_mode: "{{ item.start_mode }}"
+  with_items:
+    - name: "{{ mssql_instance_name }}"
+      state: started
+      start_mode: auto
+    - name: "SQLSERVERAGENT"
+      state: started
+      start_mode: auto
+  tags:
+    - mssql
+
+#- name: Install MS SQL patches
+#  raw: >
+#    C:\\Windows\\Temp\\SQLServerInstall\\SQLServer2016-KB3164674-x64.exe
+#    /QS
+#    /IACCEPTSQLSERVERLICENSETERMS
+#    /ACTION=Patch
+#    /INSTANCENAME={{ mssql_instance_name }}
+#  tags:
+#    - mssql
+
+- name: Install SSMS
+  raw: >
+     C:\\Windows\\Temp\\SQLServerInstall\\SSMS-Setup-ENU.exe
+     /install
+     /quiet
+     /norestart
+  tags:
+    - mssql
+
+- name: Edit registry keys
+  win_regedit:
+    key: HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL13.MSSQLSERVER\SQLServerAgent
+    value: MsxEncryptChannelOptions
+    data: 0
+    datatype: dword
+  tags:
+    - mssql
+    - mssql_registry
+
+# - name: Reboot server
+#   win_reboot:
+#     reboot_timeout_sec: 900
+#     shutdown_timeout_sec: 900
+#   when: mssql_install | changed
+#   tags:
+#     - mssql
+
