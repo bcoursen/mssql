@@ -7,7 +7,7 @@ ansible_winrm_server_cert_validation: ignore
 mssql_features: "SQL"
 mssql_instance_name: MSSQLSERVER
 mssql_svc_account: "Administrator"
-mssql_svc_account_password: "S$8&.SRNiKH"
+mssql_svc_account_password: "old_password"
 mssql_admin_account: "Administrator"
 mssql_agent_svc_account: "Administrator"
-mssql_agent_svc_account_password: "S$8&.SRNiKH"
+mssql_agent_svc_account_password: "old_password"
