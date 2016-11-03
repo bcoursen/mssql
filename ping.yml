@@ -1,0 +1,6 @@
+---
+- name: Ping a windows host
+  hosts: all
+  become: no
+  roles:
+    - ping

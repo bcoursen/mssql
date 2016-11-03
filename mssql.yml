@@ -4,4 +4,3 @@
   become: no
   roles:
     - mssql
-    - ping
